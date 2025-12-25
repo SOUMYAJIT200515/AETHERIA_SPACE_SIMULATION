@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AETHERIA: SPACE SIMULATION</title>
+    <link rel="icon" type="image/png" href="icon.png" style="border-radius: 50%;"/>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        body { 
+            margin: 0; overflow: hidden; background: #000; 
+            font-family: 'Rajdhani', sans-serif; user-select: none; 
+        }
+
+        /* BACKGROUND GRID EFFECT */
+        body::before {
+            content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: 
+                linear-gradient(rgba(0, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            z-index: 1; pointer-events: none;
+        }
+
+        /* HUD (Top Left) */
+        #hud { position: absolute; top: 30px; left: 40px; pointer-events: none; z-index: 10; width: 350px; }
+        h1 { 
+            margin: 0; font-family: 'Orbitron', sans-serif; font-size: 3rem; font-weight: 900;
+            color: white; letter-spacing: 6px; 
+            text-shadow: 0 0 20px rgba(0, 243, 255, 0.8);
+            background: linear-gradient(to right, #fff, #00f3ff);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        #event-name { 
+            color: #00f3ff; font-size: 1.5rem; letter-spacing: 4px; font-weight: 700; 
+            margin-top: 5px; text-shadow: 0 0 10px #00f3ff;
+        }
+        #sub-status { 
+            font-size: 1rem; color: #ff0055; margin-top: 5px; font-weight: 600; 
+            letter-spacing: 2px; text-transform: uppercase; 
+        }
+        #event-desc {
+            margin-top: 15px; font-size: 1rem; color: #aaa; line-height: 1.4;
+            border-left: 2px solid #00f3ff; padding-left: 10px;
+            background: rgba(0, 243, 255, 0.05);
+            padding: 10px; border-radius: 0 8px 8px 0;
+            min-height: 60px; pointer-events: auto;
+            opacity: 0; transition: opacity 1s; 
+        }
+
+        /* SIDEBAR CONTAINER */
+        #sidebar {
+            position: absolute; top: 0; right: 0; width: 300px; height: 100vh;
+            background: rgba(0, 10, 20, 0.85);
+            backdrop-filter: blur(15px);
+            border-left: 1px solid rgba(0, 243, 255, 0.3);
+            box-shadow: -10px 0 50px rgba(0, 0, 0, 0.8);
+            z-index: 100; 
+            transform: translateX(100%); /* Start Hidden */
+            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: visible; 
+        }
+
+        /* INNER SCROLLABLE CONTENT */
+        #sidebar-content {
+            width: 100%; height: 100%;
+            overflow-y: auto;
+            padding: 25px; box-sizing: border-box;
+            display: flex; flex-direction: column;
+        }
+
+        /* TOGGLE BUTTON */
+        #toggle-btn {
+            position: absolute; top: 50%; left: -40px; transform: translateY(-50%);
+            width: 40px; height: 80px;
+            background: rgba(0, 10, 20, 0.9);
+            border: 1px solid rgba(0, 243, 255, 0.5); border-right: none;
+            border-radius: 8px 0 0 8px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            color: #00f3ff; font-size: 1.5rem;
+            box-shadow: -5px 0 15px rgba(0, 243, 255, 0.3);
+            transition: all 0.3s;
+            animation: pulseArrow 2s infinite;
+        }
+        #toggle-btn:hover { background: rgba(0, 243, 255, 0.2); text-shadow: 0 0 10px #00f3ff; }
+
+        @keyframes pulseArrow {
+            0% { box-shadow: -5px 0 15px rgba(0, 243, 255, 0.3); }
+            50% { box-shadow: -5px 0 25px rgba(0, 243, 255, 0.8); }
+            100% { box-shadow: -5px 0 15px rgba(0, 243, 255, 0.3); }
+        }
+
+        /* Sidebar Styling */
+        .creator-info { margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 20px; }
+        .creator-label { font-size: 0.8rem; color: #666; text-transform: uppercase; letter-spacing: 2px; }
+        .creator-name { font-family: 'Orbitron', sans-serif; color: #fff; font-size: 1.1rem; letter-spacing: 1px; margin-top: 5px; }
+        .project-desc { font-size: 0.85rem; color: #aaa; margin-top: 10px; line-height: 1.4; }
+
+        .section-title {
+            color: #00f3ff; font-family: 'Orbitron', sans-serif; font-size: 0.8rem; 
+            text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; margin-top: 20px;
+            display: flex; align-items: center;
+        }
+        .section-title::before { content: ""; width: 8px; height: 8px; background: #00f3ff; margin-right: 8px; box-shadow: 0 0 10px #00f3ff; }
+
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+        .ctrl-btn {
+            background: rgba(0, 243, 255, 0.05); border: 1px solid rgba(0, 243, 255, 0.2);
+            color: #00f3ff; padding: 12px 0; font-family: 'Rajdhani', sans-serif;
+            font-size: 0.85rem; font-weight: 700; cursor: pointer;
+            text-transform: uppercase; letter-spacing: 1px;
+            transition: all 0.3s; position: relative; overflow: hidden;
+        }
+        .ctrl-btn:hover { background: rgba(0, 243, 255, 0.15); border-color: #00f3ff; box-shadow: 0 0 15px rgba(0, 243, 255, 0.4); color: white; }
+
+        .btn-purple { color: #d65cff; border-color: rgba(214, 92, 255, 0.3); background: rgba(214, 92, 255, 0.05); }
+        .btn-purple:hover { background: rgba(214, 92, 255, 0.2); border-color: #d65cff; box-shadow: 0 0 15px rgba(214, 92, 255, 0.4); }
+
+        .btn-green { color: #00ff88; border-color: rgba(0, 255, 136, 0.3); background: rgba(0, 255, 136, 0.05); }
+        .btn-green:hover { background: rgba(0, 255, 136, 0.2); border-color: #00ff88; box-shadow: 0 0 15px rgba(0, 255, 136, 0.4); }
+
+        .btn-red { color: #ff0055; border-color: #ff0055; }
+        .btn-red:hover { background: #ff0055; color: white; box-shadow: 0 0 20px #ff0055; }
+
+        .special { grid-column: span 2; border-color: #ffaa00; color: #ffaa00; background: rgba(255, 170, 0, 0.1); }
+        .special:hover { background: rgba(255, 170, 0, 0.3); border-color: #ffaa00; box-shadow: 0 0 20px rgba(255, 170, 0, 0.5); }
+
+        /* RECORDING PULSE ANIMATION */
+        .recording {
+            animation: pulseRecord 1s infinite alternate;
+            background: #ff0055 !important;
+            color: white !important;
+            border-color: #ff0055 !important;
+        }
+        @keyframes pulseRecord {
+            0% { box-shadow: 0 0 5px #ff0055; }
+            100% { box-shadow: 0 0 20px #ff0055; }
+        }
+
+        /* OVERLAY */
+        #overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, #001122 0%, #000000 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200;
+            transition: opacity 1s ease-in-out;
+        }
+        #start-btn {
+            background: transparent; color: #00f3ff; border: 2px solid #00f3ff;
+            padding: 15px 50px; font-family: 'Orbitron', sans-serif; font-size: 1.5rem; 
+            cursor: pointer; text-transform: uppercase; letter-spacing: 5px;
+            transition: 0.3s; margin-top: 30px; 
+        }
+        #start-btn:hover { background: #00f3ff; color: #000; box-shadow: 0 0 40px #00f3ff; }
+
+        .sys-status {
+            margin-top: 20px; font-size: 0.7rem; color: #444; text-align: center;
+            border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;
+        }
+        .sys-status span { color: #00f3ff; }
+        
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #00f3ff; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); }
+    </style>
+</head>
+<body>
+<!-- MAIN WEBSITE / APP -->
+<div id="app">
+  <!-- your existing website / canvas / UI goes here -->
+</div>
+    <div id="overlay">
+        <h1 style="font-size: 5rem; text-shadow: 0 0 50px rgba(0,243,255,0.5);">AETHERIA</h1>
+        <p style="color:#888; letter-spacing: 8px; margin-top: 0;">COSMIC VISUALIZATION ENGINE</p>
+        <button id="start-btn">INITIALIZE SYSTEM</button>
+    </div>
+
+    <div id="hud">
+        <h1>AETHERIA</h1>
+        <div id="event-name">SYSTEM OFFLINE</div>
+        <div id="sub-status">WAITING FOR INPUT...</div>
+        <div id="event-desc"></div> 
+    </div>
+
+    <div id="sidebar">
+        <div id="toggle-btn" onclick="toggleSidebar()">&#10094;</div>
+
+        <div id="sidebar-content">
+            <div class="creator-info">
+                <div class="creator-label">Architect</div>
+                <div class="creator-name">Soumyajit Saha</div>
+                <div class="project-desc">
+                    High-performance particle engine. Use Command Views to change angles and the Media Tools to capture the universe.
+                </div>
+            </div>
+
+            <div>
+                <div class="section-title">Standard Events</div>
+                <div class="btn-grid">
+                    <button class="ctrl-btn" onclick="triggerEvent('BIG_BANG')">Big Bang</button>
+                    <button class="ctrl-btn" onclick="triggerEvent('SUPERNOVA')">Supernova</button>
+                    <button class="ctrl-btn" onclick="triggerEvent('BLACK_HOLE')">Black Hole</button>
+                    <button class="ctrl-btn special" onclick="triggerEvent('GALAXY')">Galaxy Merge</button>
+                </div>
+            </div>
+
+            <div>
+                <div class="section-title">Anomalies</div>
+                <div class="btn-grid">
+                    <button class="ctrl-btn btn-purple" onclick="triggerEvent('QUANTUM_FIELD')">Quantum</button>
+                    <button class="ctrl-btn btn-purple" onclick="triggerEvent('DYSON_SPHERE')">Dyson</button>
+                    <button class="ctrl-btn btn-purple" onclick="triggerEvent('WORMHOLE')">Wormhole</button>
+                    <button class="ctrl-btn btn-purple" onclick="triggerEvent('HYPERCUBE')">Tesseract</button>
+                    <button class="ctrl-btn btn-purple" onclick="triggerEvent('VORTEX_STORM')">Vortex</button>
+                    <button class="ctrl-btn btn-purple" onclick="triggerEvent('INFINITY_KNOT')">Inf. Knot</button>
+                    <button class="ctrl-btn btn-purple" onclick="triggerEvent('CYBER_TERRAIN')">Terrain</button>
+                    <button class="ctrl-btn btn-purple" onclick="triggerEvent('MATRIX')">Meteor shower</button>
+                </div>
+            </div>
+
+            <div>
+                <div class="section-title">Command Views</div>
+                <div class="btn-grid">
+                    <button class="ctrl-btn btn-green" onclick="setCamera('top')">Top Down</button>
+                    <button class="ctrl-btn btn-green" onclick="setCamera('side')">Side Profile</button>
+                    <button class="ctrl-btn btn-green" onclick="setCamera('cockpit')">Cockpit</button>
+                    <button class="ctrl-btn btn-green" onclick="setCamera('cinematic')">Cinematic</button>
+                </div>
+            </div>
+
+            <div>
+                <div class="section-title">Media Tools</div>
+                <div class="btn-grid">
+                    <button class="ctrl-btn btn-green" onclick="setAxis('mix')">Chaos</button>
+                    <button class="ctrl-btn btn-green" onclick="takeSnapshot()">📸 Snap</button>
+                    <button class="ctrl-btn special" id="rec-btn" onclick="toggleRecord()">🔴 Record Video</button>
+                </div>
+            </div>
+
+            <div class="sys-status">
+                STATUS: <span>OPTIMAL</span> &nbsp;|&nbsp; PARTICLES: <span>50K</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- UI LOGIC ---
+        let sidebarOpen = false;
+        const sidebar = document.getElementById('sidebar');
+        const toggleBtn = document.getElementById('toggle-btn');
+
+        function toggleSidebar() {
+            sidebarOpen = !sidebarOpen;
+            if(sidebarOpen) {
+                sidebar.style.transform = "translateX(0)";
+                toggleBtn.innerHTML = "&#10095;"; 
+            } else {
+                sidebar.style.transform = "translateX(100%)";
+                toggleBtn.innerHTML = "&#10094;"; 
+            }
+        }
+
+        // --- MEDIA RECORDING LOGIC ---
+        let mediaRecorder;
+        let recordedChunks = [];
+        let isRecording = false;
+
+        function toggleRecord() {
+            const btn = document.getElementById('rec-btn');
+            
+            if (!isRecording) {
+                // START RECORDING
+                const stream = renderer.domElement.captureStream(60); // 60 FPS
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
+                
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) recordedChunks.push(e.data);
+                };
+                
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = 'Aetheria_Recording_' + Date.now() + '.webm';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    recordedChunks = [];
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+                btn.innerHTML = "⏹ Stop Recording";
+                btn.classList.add("recording");
+                AudioSys.playDigital();
+            } else {
+                // STOP RECORDING
+                mediaRecorder.stop();
+                isRecording = false;
+                btn.innerHTML = "🔴 Record Video";
+                btn.classList.remove("recording");
+                AudioSys.playCrash();
+            }
+        }
+
+        function takeSnapshot() {
+            renderer.render(scene, camera);
+            const dataURL = renderer.domElement.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = 'Aetheria_Capture_' + Date.now() + '.png';
+            link.href = dataURL;
+            link.click();
+            AudioSys.playDigital();
+        }
+
+        // --- DATA ---
+        const eventData = {
+            'BIG_BANG':     "You are now going to witness… BIG BANG:It is The rapid expansion of matter from a state of extremely high density and temperature.",
+            'SUPERNOVA':    "You are now going to witness… SUPERNOVA:It is A powerful stellar explosion. Features a dense neutron core ejecting plasma into a cooling nebular shell.",
+            'BLACK_HOLE':   "You are now going to witness… BLACK HOLE:It is A region of spacetime where gravity is so strong that not even light can escape its event horizon.",
+            'GALAXY':       "You are now going to witness… GALAXY:It is Two spiral galaxies colliding. Gravity tears stars into tidal tails before they merge into an elliptical core.",
+            'WORMHOLE':     "You are now going to witness… WORMHOLE:It is A speculative structure linking disparate points in spacetime, creating a shortcut through the universe.",
+            'HYPERCUBE':    "You are now going to witness… Tesseract:It is A Tesseract (4D cube). As it rotates in four-dimensional space, its 3D shadow turns inside out.",
+            'VORTEX_STORM': "You are now going to witness… VORTEX STORM:It is A singularity funnel composed of high-energy plasma, rotating at relativistic speeds.",
+            'INFINITY_KNOT':"You are now going to witness… INFINITY KNOT:It is A mathematical Torus Knot loop that twists through space with no beginning and no end.",
+            'CYBER_TERRAIN':"You are now going to witness… CYBER TERRAIN:It is A procedural digital landscape representing raw data visualization.",
+            'MATRIX':       "You are now going to witness… Meteor shower:It is A simulated reality stream, visualized as falling digital code rain.",
+            'QUANTUM_FIELD':"You are now going to witness… QUANTUM FIELD:It is A visualization of subatomic probability clouds pulsating around an unstable nucleus.",
+            'DYSON_SPHERE': "You are now going to witness… DYSON SPHERE:It is An alien megastructure completely encompassing a star to harvest its total energy output.",
+            'STARFIELD':    "You are now going to witness… STARFIELD:It is Deep space vacuum. Millions of stars drifting in the cosmic void.",
+            'IDLE':         "You are now going to witness… System Standing By."
+        };
+
+        // --- 1. AUDIO & TTS SYSTEM ---
+        const AudioSys = {
+            ctx: null,
+            init: function() {
+                try {
+                    window.AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                } catch(e) {}
+            },
+            playTone: function(freq, type, dur, vol=0.1) {
+                if(!this.ctx) return;
+                const o = this.ctx.createOscillator(); const g = this.ctx.createGain();
+                o.type = type; o.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                g.gain.setValueAtTime(vol, this.ctx.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + dur);
+                o.connect(g); g.connect(this.ctx.destination); o.start(); o.stop(this.ctx.currentTime + dur);
+            },
+            speak: function(text) {
+                if (!window.speechSynthesis) return;
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.pitch = 0.8; 
+                utterance.rate = 1.05; 
+                utterance.volume = 0.9;
+                const voices = window.speechSynthesis.getVoices();
+                const preferred = voices.find(v => v.name.includes('Google US English')) || voices[0];
+                if(preferred) utterance.voice = preferred;
+                window.speechSynthesis.speak(utterance);
+            },
+            playDeepRumble: function() { this.playTone(50, 'sawtooth', 6, 0.2); },
+            playCrash: function() { this.playTone(100, 'square', 2); },
+            playHighTone: function() { this.playTone(800, 'sine', 1); },
+            playWarp: function() { this.playTone(150, 'triangle', 4); },
+            playDigital: function() { this.playTone(600, 'square', 0.5); }
+        };
+
+        // --- 2. THREE.JS SCENE ---
+        const particleCount = 50000; 
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 5000);
+        camera.position.z = 450; 
+
+        // Enable Drawing Buffer for Recording
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const canvas = document.createElement('canvas'); canvas.width=32; canvas.height=32;
+        const ctx = canvas.getContext('2d');
+        const grd = ctx.createRadialGradient(16,16,0,16,16,16);
+        grd.addColorStop(0,'rgba(255,255,255,1)'); grd.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=grd; ctx.fillRect(0,0,32,32);
+
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+        const colors = new Float32Array(particleCount * 3);
+        
+        for(let i=0; i<particleCount*3; i+=3) {
+            positions[i] = (Math.random()-0.5)*2000; 
+            positions[i+1] = (Math.random()-0.5)*2000;
+            positions[i+2] = (Math.random()-0.5)*2000;
+            colors[i]=1; colors[i+1]=1; colors[i+2]=1;
+        }
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+        const material = new THREE.PointsMaterial({ 
+            size: 2.2, map: new THREE.CanvasTexture(canvas), 
+            vertexColors: true, blending: THREE.AdditiveBlending, 
+            depthWrite: false, transparent: true 
+        });
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+
+        // --- 3. PHYSICS & DATA ---
+        const state = { mode: 'STARFIELD', time: 0, galaxyTimer: 0, axis: 'y' };
+        
+        const galaxyParticles = [];
+        for(let i=0; i<particleCount; i++) {
+            let galId = (i < particleCount / 2) ? 1 : 2;
+            let ang = Math.random() * Math.PI * 2;
+            let dist = 10 + Math.random() * 120;
+            let armOffset = (i % 3) * (Math.PI * 2 / 3); 
+            let spiral = ang + armOffset + (dist * 0.05);
+            galaxyParticles.push({ id: galId, baseAngle: spiral, dist: dist, speed: 0.02 + (10/dist) * 0.005, yOff: (Math.random()-0.5) * 10 });
+        }
+
+        const targets = { 
+            bigBang: [], supernova: [], blackHole: [], 
+            wormhole: [], hypercube: [], vortex: [], infinity: [], terrain: [], matrix: [],
+            quantum: [], dyson: [], starfield: []
+        };
+        
+        function getSpherePoint(r) {
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos((Math.random() * 2) - 1);
+            return [r*Math.sin(phi)*Math.cos(theta), r*Math.sin(phi)*Math.sin(theta), r*Math.cos(phi)];
+        }
+
+        // --- SHAPE GENERATION ---
+        const outerSize = 300, innerSize = 100;
+
+        for(let i=0; i<particleCount; i++) {
+            let x,y,z, r, theta, phi;
+
+            // 1. STARFIELD
+            targets.starfield.push((Math.random()-0.5)*2000, (Math.random()-0.5)*2000, (Math.random()-0.5)*2000);
+
+            // 2. BIG BANG
+            r = Math.random() * 800;
+            targets.bigBang.push(...getSpherePoint(r));
+
+            // 3. SUPERNOVA
+            if (i < particleCount * 0.1) {
+                r = Math.random() * 15; targets.supernova.push(...getSpherePoint(r));
+            } else if (i < particleCount * 0.4) {
+                r = 50 + Math.random() * 400; theta = Math.random() * Math.PI * 2; phi = Math.acos((Math.random() * 2) - 1);
+                if (Math.random() > 0.5) { theta = Math.round(theta * 3) / 3; phi = Math.round(phi * 3) / 3; }
+                targets.supernova.push(r*Math.sin(phi)*Math.cos(theta), r*Math.sin(phi)*Math.sin(theta), r*Math.cos(phi));
+            } else {
+                r = 300 + Math.random() * 50; theta = Math.random() * Math.PI * 2; phi = Math.acos((Math.random() * 2) - 1);
+                targets.supernova.push(r*Math.sin(phi)*Math.cos(theta), r*Math.sin(phi)*Math.sin(theta), r*Math.cos(phi));
+            }
+
+            // 4. BLACK HOLE
+            if (i < particleCount * 0.05) targets.blackHole.push((Math.random()-0.5)*2, (Math.random()-0.5)*800, (Math.random()-0.5)*2);
+            else { let angle = i * 0.05; r = 30 + (i/particleCount) * 250; targets.blackHole.push(r*Math.cos(angle), (Math.random()-0.5)*10, r*Math.sin(angle)); }
+
+            // 5. WORMHOLE
+            let wAng = Math.random() * Math.PI * 2; let wRad = 80 + Math.random() * 20; let wZ = (Math.random()) * 2000 - 1000;
+            targets.wormhole.push(wRad * Math.cos(wAng), wRad * Math.sin(wAng), wZ);
+
+            // 6. HYPERCUBE
+            let which = Math.random() > 0.5 ? outerSize : innerSize;
+            let p = [(Math.random()-0.5)*2*which, (Math.random()-0.5)*2*which, (Math.random()-0.5)*2*which];
+            let snap = Math.random() > 0.5 ? which : -which; let axis = Math.floor(Math.random() * 3); p[axis] = snap;
+            if(i > particleCount * 0.8) {
+                let t = Math.random(); let cornerIdx = Math.floor(Math.random() * 8);
+                let cx = (cornerIdx & 1) ? 1 : -1; let cy = (cornerIdx & 2) ? 1 : -1; let cz = (cornerIdx & 4) ? 1 : -1;
+                p = [(cx*innerSize)+(cx*(outerSize-innerSize)*t), (cy*innerSize)+(cy*(outerSize-innerSize)*t), (cz*innerSize)+(cz*(outerSize-innerSize)*t)];
+            }
+            targets.hypercube.push(...p);
+
+            // 7. VORTEX STORM
+            let vH = (Math.random() - 0.5) * 600; let vR = 20 + Math.abs(vH) * 0.5; let vA = i * 0.1; 
+            targets.vortex.push(vR * Math.cos(vA), vH, vR * Math.sin(vA));
+
+            // 8. INFINITY KNOT
+            let t1 = i * 0.01; let tR = 120 + Math.cos(t1 * 3) * 50;
+            targets.infinity.push(tR * Math.cos(t1), tR * Math.sin(t1), Math.sin(t1 * 3) * 100);
+
+            // 9. CYBER TERRAIN
+            let gx = (Math.random() - 0.5) * 800; let gz = (Math.random() - 0.5) * 800;
+            targets.terrain.push(gx, -100, gz);
+
+            // 10. MATRIX RAIN
+            targets.matrix.push((Math.random()-0.5)*600, Math.random()*600, (Math.random()-0.5)*600);
+
+            // 11. QUANTUM FIELD
+            if(i < particleCount * 0.2) { targets.quantum.push(...getSpherePoint(20)); } 
+            else {
+                let qR = 150 + Math.random() * 50; let qA = Math.random() * Math.PI * 2; let plane = i % 3; 
+                if(plane === 0) targets.quantum.push(qR*Math.cos(qA), qR*Math.sin(qA), 0); 
+                else if(plane === 1) targets.quantum.push(qR*Math.cos(qA), 0, qR*Math.sin(qA)); 
+                else targets.quantum.push(0, qR*Math.cos(qA), qR*Math.sin(qA)); 
+            }
+
+            // 12. DYSON SPHERE
+            let dRad = 250; let dPhi = Math.acos((Math.random() * 2) - 1); let dTheta = Math.random() * Math.PI * 2;
+            if(Math.random() > 0.3) { dPhi = Math.floor(dPhi * 20) / 20; dTheta = Math.floor(dTheta * 20) / 20; }
+            targets.dyson.push(dRad*Math.sin(dPhi)*Math.cos(dTheta), dRad*Math.sin(dPhi)*Math.sin(dTheta), dRad*Math.cos(dPhi));
+        }
+
+        // --- 4. CONTROL LOGIC ---
+        function setAxis(ax) {
+            state.axis = ax;
+            if(ax !== 'mix') new TWEEN.Tween(particles.rotation).to({x:0, y:0, z:0}, 500).easing(TWEEN.Easing.Quadratic.Out).start();
+        }
+
+        function setCamera(view) {
+            let x, y, z;
+            if(view === 'top') { x=0; y=600; z=0; }
+            else if(view === 'side') { x=600; y=0; z=0; }
+            else if(view === 'cockpit') { x=0; y=0; z=100; }
+            else { x=300; y=200; z=450; } // Cinematic
+            new TWEEN.Tween(camera.position).to({x:x, y:y, z:z}, 1500).easing(TWEEN.Easing.Cubic.Out).start();
+            camera.lookAt(scene.position);
+        }
+
+        window.addEventListener('wheel', (event) => { camera.position.z += event.deltaY * 0.5; });
+
+        function triggerEvent(mode) {
+            state.mode = mode; 
+            state.time = 0;
+            state.galaxyTimer = 0; 
+            
+            document.getElementById('event-name').innerText = mode.replace('_', ' ');
+            document.getElementById('sub-status').innerText = "CALCULATING PHYSICS...";
+            
+            if(mode !== 'STARFIELD') {
+                const desc = eventData[mode] || "Visual Simulation Active.";
+                document.getElementById('event-desc').innerText = desc;
+                document.getElementById('event-desc').style.opacity = '1';
+                AudioSys.speak(desc);
+            }
+
+            new TWEEN.Tween(camera.position).to({x:0, y:0, z:450}, 1000).easing(TWEEN.Easing.Quadratic.Out).start();
+
+            // GALAXY CASE 
+            if(mode === 'GALAXY') {
+                const col = particles.geometry.attributes.color;
+                const c1 = new THREE.Color(0x0088ff); const c2 = new THREE.Color(0xffaa00);
+                for(let i=0; i<particleCount; i++) {
+                    if(i < particleCount/2) col.setXYZ(i, c1.r, c1.g, c1.b); 
+                    else col.setXYZ(i, c2.r, c2.g, c2.b); 
+                }
+                col.needsUpdate = true;
+                AudioSys.playDeepRumble();
+                return;
+            }
+
+            // STANDARD EVENTS
+            let targetArr;
+            const col = particles.geometry.attributes.color; 
+            const c = new THREE.Color();
+            let colorLogic = (i) => c.setHex(0xffffff);
+
+            switch(mode) {
+                case 'STARFIELD': targetArr = targets.starfield; colorLogic = (i) => c.setHex(0xffffff); break;
+                case 'BIG_BANG': targetArr = targets.bigBang; AudioSys.playCrash(); colorLogic = (i) => c.setHSL(Math.random(), 1, 0.7); break;
+                case 'SUPERNOVA': targetArr = targets.supernova; AudioSys.playCrash(); colorLogic = (i) => { if(i < particleCount * 0.1) c.setHex(0xffffff); else if(i < particleCount * 0.4) c.setHex(0xffaa00); else c.setHex(0xaa0000); }; break;
+                case 'BLACK_HOLE': targetArr = targets.blackHole; AudioSys.playDeepRumble(); colorLogic = (i) => { if(i<particleCount*0.05) c.setHex(0xaa00ff); else c.setHex(0x220044); }; break;
+                case 'VORTEX_STORM': targetArr = targets.vortex; AudioSys.playWarp(); colorLogic = (i) => c.setHSL(0.5 + (i/particleCount)*0.2, 0.8, 0.5); break;
+                case 'WORMHOLE': targetArr = targets.wormhole; AudioSys.playWarp(); colorLogic = (i) => c.setHSL(0.5 + Math.random()*0.1, 1.0, 0.5); break;
+                case 'HYPERCUBE': targetArr = targets.hypercube; AudioSys.playDigital(); colorLogic = (i) => { if(Math.random()>0.9) c.setHex(0xffffff); else c.setHex(0x00ff00); }; break;
+                case 'INFINITY_KNOT': targetArr = targets.infinity; AudioSys.playDigital(); colorLogic = (i) => c.setHex(0xff0088); break;
+                case 'CYBER_TERRAIN': targetArr = targets.terrain; AudioSys.playDigital(); colorLogic = (i) => c.setHex(0xff00cc); break;
+                case 'MATRIX': targetArr = targets.matrix; AudioSys.playDigital(); colorLogic = (i) => c.setHex(0x00ff00); break;
+                case 'QUANTUM_FIELD': targetArr = targets.quantum; AudioSys.playDigital(); colorLogic = (i) => c.setHex(0x00ffff); break;
+                case 'DYSON_SPHERE': targetArr = targets.dyson; AudioSys.playDeepRumble(); colorLogic = (i) => c.setHex(0xffaa00); break;
+                default: targetArr = targets.starfield;
+            }
+
+            for(let i=0; i<particleCount; i++) { colorLogic(i); col.setXYZ(i, c.r, c.g, c.b); }
+            col.needsUpdate = true;
+
+            if (targetArr) {
+                const pos = particles.geometry.attributes.position;
+                const start = Float32Array.from(pos.array);
+                const tween = { t: 0 };
+                new TWEEN.Tween(tween).to({ t: 1 }, 2000).easing(TWEEN.Easing.Exponential.Out).onUpdate(() => {
+                    for(let i=0; i<particleCount*3; i++) pos.array[i] = start[i] + (targetArr[i] - start[i]) * tween.t;
+                    pos.needsUpdate = true;
+                }).start();
+                setTimeout(() => { document.getElementById('sub-status').innerText = "SIMULATION STABLE"; }, 2000);
+            }
+        }
+
+        // --- ANIMATION LOOP ---
+        function animate() {
+            requestAnimationFrame(animate);
+            TWEEN.update();
+            state.time += 0.01;
+
+            if(state.axis === 'x') particles.rotation.x += 0.005;
+            else if(state.axis === 'y') particles.rotation.y += 0.005;
+            else if(state.axis === 'z') particles.rotation.z += 0.005;
+            else if(state.axis === 'mix') { particles.rotation.x += 0.002; particles.rotation.y += 0.003; }
+
+            const pos = particles.geometry.attributes.position.array;
+
+            if (state.mode === 'GALAXY') {
+                state.galaxyTimer += 0.01;
+                const gt = state.galaxyTimer;
+                const statusEl = document.getElementById('sub-status');
+                let cx1, cx2; 
+                if (gt < 5.0) { statusEl.innerText = "PHASE 1: GRAVITATIONAL APPROACH"; let p = gt/5.0; cx1 = -250+(250*p); cx2 = 250-(250*p); } 
+                else if (gt < 12.0) { statusEl.innerText = "PHASE 2: COLLISION & CHAOS"; cx1 = Math.sin(gt*2)*20; cx2 = -Math.sin(gt*2)*20; } 
+                else { statusEl.innerText = "PHASE 3: GALACTIC MERGER"; cx1 = 0; cx2 = 0; }
+
+                for(let i=0; i<particleCount; i++) {
+                    const idx = i*3; const p = galaxyParticles[i];
+                    p.baseAngle += p.speed;
+                    let r = p.dist; let angle = p.baseAngle;
+                    if(gt > 5.0 && gt < 12.0) { r += Math.sin(angle*3+gt)*10; angle += Math.sin(gt)*0.1; }
+                    let lx = r * Math.cos(angle); let lz = r * Math.sin(angle);
+                    let finalX, finalZ;
+                    if(p.id === 1) { finalX = cx1 + lx; finalZ = lz; if(gt<5.0) finalZ += (cx1*0.2); } 
+                    else { finalX = cx2 + lx; finalZ = lz; if(gt<5.0) finalZ -= (cx2*0.2); }
+                    pos[idx] = pos[idx]*0.9 + finalX*0.1; pos[idx+1] = pos[idx+1]*0.9 + p.yOff*0.1; pos[idx+2] = pos[idx+2]*0.9 + finalZ*0.1;
+                }
+                particles.geometry.attributes.position.needsUpdate = true;
+            } 
+            else if (state.mode === 'VORTEX_STORM') { particles.rotation.y += 0.05; }
+            else if (state.mode === 'INFINITY_KNOT') { particles.rotation.x += 0.01; particles.rotation.y += 0.01; }
+            else if (state.mode === 'WORMHOLE') {
+                camera.position.z = 800 - (state.time * 200) % 1600; 
+                camera.position.x = Math.sin(state.time) * 20; camera.position.y = Math.cos(state.time) * 20;
+                particles.rotation.z += 0.02; 
+            } else if (state.mode === 'SUPERNOVA') {
+                 particles.rotation.y += 0.001; particles.scale.setScalar(1 + Math.sin(state.time * 2) * 0.05);
+            } else if (state.mode === 'CYBER_TERRAIN') {
+                for(let i=0; i<particleCount; i++) {
+                    const idx = i*3;
+                    pos[idx+1] = -100 + Math.sin((pos[idx]*0.01) + state.time*2)*20 + Math.cos((pos[idx+2]*0.01)+state.time)*20;
+                }
+                particles.geometry.attributes.position.needsUpdate = true;
+            } else if (state.mode === 'MATRIX') {
+                for(let i=1; i<particleCount*3; i+=3) {
+                    pos[i] -= 8; if(pos[i] < -400) pos[i] = 400; 
+                }
+                particles.geometry.attributes.position.needsUpdate = true;
+            } else if (state.mode === 'QUANTUM_FIELD') {
+                particles.rotation.y += 0.05; particles.rotation.x += 0.05;
+                particles.scale.setScalar(1 + Math.sin(state.time*10)*0.1);
+            } else if (state.mode === 'DYSON_SPHERE') {
+                particles.rotation.y += 0.005;
+            } else if (state.mode === 'STARFIELD') {
+                particles.rotation.y += 0.0005; 
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            const overlay = document.getElementById('overlay');
+            overlay.style.opacity = '0';
+            setTimeout(() => overlay.style.display = 'none', 1000);
+            
+            document.getElementById('event-name').innerText = "INITIALIZING...";
+            if(window.speechSynthesis) window.speechSynthesis.resume();
+            
+            // Warp Speed Effect
+            camera.position.z = 1000;
+            new TWEEN.Tween(camera.position).to({z: 450}, 2000).easing(TWEEN.Easing.Exponential.Out).start();
+
+            animate(); 
+            triggerEvent('STARFIELD'); 
+            
+            setTimeout(() => {
+                document.getElementById('event-name').innerText = "SYSTEM ONLINE";
+                toggleSidebar();
+                AudioSys.playDigital();
+                AudioSys.speak("System Online. Welcome to our space simulation: Aetheria... Created by Architect Soumyajit Saha. To operate the engine, simply click the arrow on the right to extend the command deck. Select an event to visualize physics in real time, and use the camera snapshot and recording tools to capture your discoveries.");
+            }, 1500);
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
